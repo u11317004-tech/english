@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英文發音練習 - 離線題庫版</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // 預設題庫：10個主題，每個主題由淺入深 5 個句子
+        const QUESTION_BANK = {
+            daily: [
+                { text: "How are you today?", level: 1 },
+                { text: "I would like some coffee please.", level: 2 },
+                { text: "What are your plans for the weekend?", level: 3 },
+                { text: "It has been a very productive day so far.", level: 4 },
+                { text: "I am looking forward to meeting you in person.", level: 5 }
+            ],
+            travel: [
+                { text: "Where is the station?", level: 1 },
+                { text: "I want to check in please.", level: 2 },
+                { text: "Is there a good restaurant nearby?", level: 3 },
+                { text: "Could you tell me how to get to the museum?", level: 4 },
+                { text: "I would like to book a flight with a window seat.", level: 5 }
+            ],
+            business: [
+                { text: "Let's start the meeting.", level: 1 },
+                { text: "Please send me the report.", level: 2 },
+                { text: "We need to discuss the new project details.", level: 3 },
+                { text: "Our company is focusing on sustainable development.", level: 4 },
+                { text: "We should evaluate the potential risks before making a decision.", level: 5 }
+            ],
+            food: [
+                { text: "I am hungry.", level: 1 },
+                { text: "This soup tastes delicious.", level: 2 },
+                { text: "Could I have the menu, please?", level: 3 },
+                { text: "I am allergic to peanuts and dairy products.", level: 4 },
+                { text: "The restaurant is famous for its authentic local cuisine.", level: 5 }
+            ],
+            shopping: [
+                { text: "How much is this?", level: 1 },
+                { text: "I am just looking, thanks.", level: 2 },
+                { text: "Do you have this in a larger size?", level: 3 },
+                { text: "Can I pay by credit card or mobile payment?", level: 4 },
+                { text: "I would like to return this item and get a refund.", level: 5 }
+            ],
+            hobbies: [
+                { text: "I like music.", level: 1 },
+                { text: "Do you play any sports?", level: 2 },
+                { text: "Photography is my favorite way to relax.", level: 3 },
+                { text: "I have been practicing the piano for five years.", level: 4 },
+                { text: "Exploring new places is what I enjoy most about hiking.", level: 5 }
+            ],
+            health: [
+                { text: "Drink more water.", level: 1 },
+                { text: "I need to exercise today.", level: 2 },
+                { text: "Healthy food is good for your body.", level: 3 },
+                { text: "Regular sleep patterns can improve your mental health.", level: 4 },
+                { text: "It is important to maintain a balance between work and life.", level: 5 }
+            ],
+            tech: [
+                { text: "Open the app.", level: 1 },
+                { text: "My battery is almost dead.", level: 2 },
+                { text: "Artificial intelligence is changing the world.", level: 3 },
+                { text: "Please make sure to back up your data regularly.", level: 4 },
+                { text: "Technology allows us to connect with people globally in real time.", level: 5 }
+            ],
+            movies: [
+                { text: "I love movies.", level: 1 },
+                { text: "Who is your favorite actor?", level: 2 },
+                { text: "The special effects in this film are amazing.", level: 3 },
+                { text: "I prefer watching documentaries over romantic comedies.", level: 4 },
+                { text: "The soundtrack plays a crucial role in creating the atmosphere.", level: 5 }
+            ],
+            nature: [
+                { text: "Look at the trees.", level: 1 },
+                { text: "The weather is very nice.", level: 2 },
+                { text: "We should protect the environment.", level: 3 },
+                { text: "Climate change is a serious threat to our planet.", level: 4 },
+                { text: "Preserving natural habitats is essential for biodiversity.", level: 5 }
+            ]
+        };
+
+        const THEMES = [
+            { id: 'daily', name: '日常會話', icon: '🏠' },
+            { id: 'travel', name: '旅遊冒險', icon: '✈️' },
+            { id: 'business', name: '商務英語', icon: '💼' },
+            { id: 'food', name: '飲食文化', icon: '🍜' },
+            { id: 'shopping', name: '購物消費', icon: '🛍️' },
+            { id: 'hobbies', name: '興趣愛好', icon: '🎨' },
+            { id: 'health', name: '健康生活', icon: '🧘' },
+            { id: 'tech', name: '科技未來', icon: '💻' },
+            { id: 'movies', name: '影視音樂', icon: '🎬' },
+            { id: 'nature', name: '自然環境', icon: '🌿' }
+        ];
+
+        const App = () => {
+            const [theme, setTheme] = useState(null);
+            const [sentences, setSentences] = useState([]);
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [isRecording, setIsRecording] = useState(false);
+            const [result, setResult] = useState(null);
+            const [error, setError] = useState(null);
+
+            const recognitionRef = useRef(null);
+
+            useEffect(() => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    recognitionRef.current = new SpeechRecognition();
+                    recognitionRef.current.lang = 'en-US';
+                    recognitionRef.current.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        analyzeSpeech(transcript);
+                    };
+                    recognitionRef.current.onend = () => setIsRecording(false);
+                    recognitionRef.current.onerror = (e) => {
+                        setError(`辨識錯誤: ${e.error}`);
+                        setIsRecording(false);
+                    };
+                }
+            }, []);
+
+            const startTheme = (selectedTheme) => {
+                setTheme(selectedTheme);
+                setSentences(QUESTION_BANK[selectedTheme.id]);
+                setCurrentIndex(0);
+                setResult(null);
+            };
+
+            const speak = (text) => {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.85;
+                window.speechSynthesis.speak(utterance);
+            };
+
+            const startRecording = () => {
+                if (!recognitionRef.current) return;
+                setResult(null);
+                setIsRecording(true);
+                recognitionRef.current.start();
+            };
+
+            const analyzeSpeech = (transcript) => {
+                const targetText = sentences[currentIndex].text;
+                const targetWords = targetText.split(' ');
+                const spokenWords = transcript.toLowerCase().replace(/[.,!?;]/g, '').split(' ');
+
+                let correctCount = 0;
+                const wordStatus = targetWords.map((word) => {
+                    const cleanWord = word.toLowerCase().replace(/[.,!?;]/g, '');
+                    const isCorrect = spokenWords.includes(cleanWord);
+                    if (isCorrect) correctCount++;
+                    return { word, isCorrect };
+                });
+
+                const score = Math.round((correctCount / targetWords.length) * 100);
+                setResult({ transcript, score, wordStatus });
+            };
+
+            if (!theme) {
+                return (
+                    <div className="min-h-screen p-6 flex flex-col items-center justify-center">
+                        <h1 className="text-4xl font-black text-slate-800 mb-2">英文發音練習</h1>
+                        <p className="text-slate-500 mb-10">選擇一個主題，開始你的口說挑戰</p>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-4xl">
+                            {THEMES.map(t => (
+                                <button key={t.id} onClick={() => startTheme(t)} className="bg-white p-6 rounded-2xl border-2 border-transparent hover:border-blue-500 hover:shadow-lg transition-all flex flex-col items-center group">
+                                    <span className="text-4xl mb-2 group-hover:scale-110 transition-transform">{t.icon}</span>
+                                    <span className="font-bold text-slate-700">{t.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            const current = sentences[currentIndex];
+
+            return (
+                <div className="min-h-screen p-6 flex flex-col items-center justify-center">
+                    <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border">
+                        <div className="bg-slate-800 p-6 text-white flex justify-between items-center">
+                            <span className="font-bold text-lg">{theme.icon} {theme.name} - Level {current.level}</span>
+                            <button onClick={() => setTheme(null)} className="text-xs bg-slate-700 px-3 py-1 rounded-full">返回</button>
+                        </div>
+                        <div className="p-10 text-center">
+                            <div className="mb-10 min-h-[100px] flex items-center justify-center">
+                                {!result ? (
+                                    <h3 className="text-3xl font-bold text-slate-800">{current.text}</h3>
+                                ) : (
+                                    <div className="flex flex-wrap justify-center gap-2">
+                                        {result.wordStatus.map((item, i) => (
+                                            <span key={i} className={`text-3xl font-bold ${item.isCorrect ? 'text-green-500' : 'text-red-400 underline decoration-2'}`}>
+                                                {item.word}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex justify-center gap-6 mb-8">
+                                <button onClick={() => speak(current.text)} className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-2xl hover:bg-slate-200">📢</button>
+                                <button onClick={startRecording} disabled={isRecording} className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl shadow-lg transition-all ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'} text-white`}>
+                                    🎤
+                                </button>
+                            </div>
+                            {result && (
+                                <div className="mt-6 p-6 bg-slate-50 rounded-2xl">
+                                    <div className="text-2xl font-black text-slate-700 mb-4">{result.score} 分</div>
+                                    <button onClick={() => {
+                                        if(currentIndex < 4) {
+                                            setCurrentIndex(currentIndex + 1);
+                                            setResult(null);
+                                        } else {
+                                            setTheme(null);
+                                        }
+                                    }} className="bg-slate-800 text-white px-8 py-2 rounded-full font-bold">
+                                        {currentIndex === 4 ? '完成測驗' : '下一題 →'}
+                                    </button>
+                                </div>
+                            )}
+                            {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
